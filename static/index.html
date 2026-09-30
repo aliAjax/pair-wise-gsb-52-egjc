@@ -3,31 +3,307 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>特殊教育支持计划合规</title>
+  <title>特殊教育支持计划合规 · 服务流水账</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #17212b; }
-    main { max-width: 960px; margin: auto; }
-    button { padding: .55rem .9rem; cursor: pointer; }
-    pre { background: #f4f6f8; padding: 1rem; overflow: auto; border-radius: 8px; }
-    .row { display: flex; gap: 1rem; align-items: center; }
+    :root { --line:#d9dee3; --muted:#687789; --bg:#f5f7f9; --brand:#1f5fa8; --ok:#1a7f4b; --warn:#b25d00; --rev:#9a3434; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; margin: 0; background: var(--bg); color: #17212b; }
+    main { max-width: 1080px; margin: auto; padding: 1.5rem 1.5rem 4rem; }
+    h1 { font-size: 1.35rem; }
+    h2 { font-size: 1.05rem; margin: 1.6rem 0 .6rem; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+    .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: end; }
+    label { font-size: .8rem; color: var(--muted); display: flex; flex-direction: column; gap: .25rem; }
+    input, select, textarea { padding: .45rem .55rem; border: 1px solid var(--line); border-radius: 6px; font-size: .9rem; min-width: 9rem; }
+    textarea { min-width: 16rem; }
+    button { padding: .5rem .9rem; border: 0; border-radius: 6px; background: var(--brand); color: #fff; cursor: pointer; font-size: .88rem; }
+    button.ghost { background: #eef2f6; color: #17212b; }
+    button.danger { background: var(--rev); }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; background: #fff; }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; background: #fafbfc; }
+    .totals { display: flex; flex-wrap: wrap; gap: .8rem; }
+    .stat { border: 1px solid var(--line); border-radius: 8px; padding: .6rem 1rem; background: #fafbfc; min-width: 8rem; }
+    .stat b { display: block; font-size: 1.35rem; }
+    .stat .k { color: var(--muted); font-size: .78rem; }
+    .stat.eff b { color: var(--ok); }
+    .stat.pend b { color: var(--warn); }
+    .stat.rev b { color: var(--rev); }
+    .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .75rem; }
+    .badge.posted { background: #e4f1ff; color: #1f5fa8; }
+    .badge.reversed { background: #fbe6e6; color: var(--rev); }
+    .badge.registration { background: #e9f7ef; color: var(--ok); }
+    .badge.reversal { background: #fbe6e6; color: var(--rev); }
+    .muted { color: var(--muted); }
+    .gap { color: var(--warn); }
+    pre { background: #0f1b28; color: #d6e2ee; padding: .8rem; border-radius: 8px; overflow:auto; font-size: .8rem; max-height: 260px; }
+    #message { margin: .6rem 0; font-size: .88rem; }
+    #message.err { color: var(--rev); }
+    #message.ok { color: var(--ok); }
+    .hidden { display: none; }
+    code { background:#eef2f6; padding:.05rem .3rem; border-radius:4px; }
   </style>
 </head>
 <body>
 <main>
-  <h1>特殊教育支持计划合规</h1>
-  <p>最小演示页。完整业务流程通过README中的JSON接口调用。</p>
-  <div class="row"><button id="load">加载记录</button><button id="stats">查看状态统计</button></div>
-  <pre id="output">点击上方按钮读取服务状态。</pre>
+  <h1>特殊教育支持计划合规 · 服务流水账</h1>
+  <p class="muted">每笔服务登记带服务凭据、日期、分钟和提供者；重复凭据只返回原结果。超出计划版本授权的部分留在待处理区并写明缺口；错报只能冲销后重登记。</p>
+
+  <div class="card">
+    <div class="row">
+      <label>操作者
+        <select id="role">
+          <option value="case_manager">个案管理员 case_manager</option>
+          <option value="specialist">服务专员 specialist</option>
+          <option value="parent_rep">家长代表 parent_rep</option>
+          <option value="administrator">管理员 administrator</option>
+          <option value="admin">admin（全权）</option>
+        </select>
+      </label>
+      <label>用户ID<input id="user" value="demo"></label>
+      <button class="ghost" onclick="loadRecords()">刷新计划列表</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">新建支持计划</h2>
+    <div class="row">
+      <label>计划编号<input id="c_ref" value="IEP-001"></label>
+      <label>学生<input id="c_student" value="S-100"></label>
+      <label>障碍类型<input id="c_disability" value="hearing"></label>
+      <label>授权分钟<input id="c_minutes" type="number" value="100"></label>
+      <label>期初已服务<input id="c_delivered" type="number" value="0"></label>
+      <label>复查剩余天数<input id="c_due" type="number" value="15"></label>
+      <label>目标数<input id="c_goals" type="number" value="2"></label>
+      <button onclick="createPlan()">创建（draft）</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">计划列表</h2>
+    <table>
+      <thead><tr><th>ID</th><th>编号</th><th>学生</th><th>状态</th><th>版本</th><th>当前授权</th><th>有效/待处理/已冲销</th><th></th></tr></thead>
+      <tbody id="records"><tr><td colspan="8" class="muted">点击“刷新计划列表”。</td></tr></tbody>
+    </table>
+  </div>
+
+  <div id="detail" class="hidden">
+    <div class="card">
+      <h2 style="margin-top:0">计划 <span id="d_ref"></span> <span class="muted" id="d_state"></span></h2>
+      <div class="totals" id="totals"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">状态动作（乐观并发：expected_version 自动取最新）</h2>
+      <div class="row">
+        <button onclick="act('consent', {guardian_confirmed:true, consent_scope:'个别化服务'})">监护人同意</button>
+        <button onclick="act('activate', {})">计划生效</button>
+        <button onclick="act('review', {progress_note:'复查通过'})">复查（待处理须清零）</button>
+        <button onclick="act('close', {review_complete:true})">结案（待处理须清零）</button>
+      </div>
+      <div class="row" style="margin-top:.6rem">
+        <label>修订原因<input id="a_reason" value="追加授权"></label>
+        <label>新目标（逗号分隔）<input id="a_goals" value="目标A,目标B"></label>
+        <label>新授权分钟（留空=不改版本）<input id="a_minutes" type="number" placeholder="如 200"></label>
+        <button onclick="amend()">修订 / 发布新版本</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">登记服务流水</h2>
+      <div class="row">
+        <label>服务凭据 credential<input id="l_credential" value="SVC-001"></label>
+        <label>服务日期<input id="l_date" type="date"></label>
+        <label>分钟<input id="l_minutes" type="number" value="60"></label>
+        <label>提供者<input id="l_provider" value="SP-1"></label>
+        <button onclick="logService()">登记</button>
+        <button class="ghost" onclick="replayDemo()">模拟断网重送（重发当前凭据）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">冲销错报（原流水保留，只追加冲销原因）</h2>
+      <div class="row">
+        <label>原服务凭据<input id="r_credential" placeholder="SVC-001"></label>
+        <label>冲销原因<textarea id="r_reason" placeholder="如：日期登记错误"></textarea></label>
+        <button class="danger" onclick="reverseService()">冲销</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">计划版本授权</h2>
+      <table>
+        <thead><tr><th>版本</th><th>授权分钟</th><th>期初分钟</th><th>有效分钟</th><th>待处理/缺口</th></tr></thead>
+        <tbody id="versions"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">待处理区</h2>
+      <table>
+        <thead><tr><th>凭据</th><th>日期</th><th>提供者</th><th>登记分钟</th><th>已计入</th><th>待处理</th><th>版本</th><th>缺口说明</th></tr></thead>
+        <tbody id="pending"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">流水账（登记 / 冲销，只追加）</h2>
+      <table>
+        <thead><tr><th>#</th><th>类型</th><th>凭据</th><th>日期</th><th>提供者</th><th>分钟</th><th>版本(授权)</th><th>有效</th><th>待处理</th><th>状态/冲销原因</th></tr></thead>
+        <tbody id="entries"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">审计时间线（按凭据还原登记、冲销和版本）</h2>
+      <table>
+        <thead><tr><th>#</th><th>动作</th><th>操作者</th><th>主单版本</th><th>详情</th><th>时间(UTC)</th></tr></thead>
+        <tbody id="timeline"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <pre id="raw" class="hidden"></pre>
+  <div id="message"></div>
 </main>
 <script>
-const headers = {"X-User-Id":"demo-admin","X-Role":"admin","X-Org":"demo"};
-async function show(path) {
-  const response = await fetch(path, {headers});
-  const data = await response.json();
-  document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+let currentId = null;
+function H() {
+  return {"Content-Type": "application/json",
+          "X-User-Id": document.getElementById("user").value.trim() || "demo",
+          "X-Role": document.getElementById("role").value};
 }
-document.getElementById("load").onclick = () => show("/api/records?limit=20");
-document.getElementById("stats").onclick = () => show("/api/stats");
+async function api(method, path, body) {
+  const response = await fetch(path, {method, headers: H(), body: body === undefined ? undefined : JSON.stringify(body)});
+  const data = await response.json();
+  if (!response.ok) throw Object.assign(new Error(data.message || "请求失败"), {status: response.status, data});
+  return data;
+}
+function msg(text, ok) {
+  const el = document.getElementById("message");
+  el.textContent = text;
+  el.className = ok ? "ok" : "err";
+}
+function esc(v) {
+  return String(v === null || v === undefined ? "" : v).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+}
+async function createPlan() {
+  try {
+    const body = {reference: val("c_ref"), data: {
+      student_id: val("c_student"), disability: val("c_disability"),
+      service_minutes: Number(val("c_minutes")), delivered_minutes: Number(val("c_delivered")),
+      review_due_days: Number(val("c_due")), goals_count: Number(val("c_goals")), consent: false}};
+    const r = await api("POST", "/api/records", body);
+    msg("已创建 " + r.reference + "，版本1", true);
+    loadRecords();
+  } catch (e) { msg(e.message); }
+}
+function val(id) { return document.getElementById(id).value; }
+async function loadRecords() {
+  try {
+    const r = await api("GET", "/api/records?limit=50");
+    document.getElementById("records").innerHTML = r.items.map(x => `
+      <tr>
+        <td>${x.id}</td><td>${esc(x.reference)}</td><td>${esc(x.payload.student_id)}</td>
+        <td>${esc(x.state)}</td><td>v${x.version} / 计划v${esc(x.payload.plan_version)}</td>
+        <td>${esc(x.payload.service_minutes)}</td>
+        <td><span class="stat eff" style="display:inline-block;padding:.1rem .4rem">${esc(x.payload.delivered_minutes)}</span> /
+            <span class="gap">${esc(x.payload.pending_minutes || 0)}</span> /
+            <span style="color:var(--rev)">${esc(x.payload.reversed_minutes || 0)}</span></td>
+        <td><button class="ghost" onclick="openPlan(${x.id})">打开</button></td>
+      </tr>`).join("") || '<tr><td colspan="8" class="muted">暂无计划。</td></tr>';
+  } catch (e) { msg(e.message); }
+}
+async function openPlan(id) {
+  currentId = id;
+  document.getElementById("detail").classList.remove("hidden");
+  await refreshDetail();
+}
+async function refreshDetail() {
+  const [bundle, tl] = await Promise.all([
+    api("GET", `/api/records/${currentId}/ledger`),
+    api("GET", `/api/records/${currentId}/audit`)]);
+  window.__plan = bundle.record;
+  const p = bundle.record.payload, L = bundle.ledger;
+  document.getElementById("d_ref").textContent = bundle.record.reference;
+  document.getElementById("d_state").textContent = bundle.record.state + " · 主单版本 v" + bundle.record.version + " · 学生 " + p.student_id;
+  const t = L.totals;
+  document.getElementById("totals").innerHTML = `
+    <div class="stat"><b>${t.authorized_minutes}</b><span class="k">累计授权分钟（${L.versions.length}个版本）</span></div>
+    <div class="stat eff"><b>${t.effective_minutes + t.opening_minutes}</b><span class="k">有效分钟（含期初${t.opening_minutes}）</span></div>
+    <div class="stat pend"><b>${t.pending_minutes}</b><span class="k">待处理分钟（${t.pending_count}笔）</span></div>
+    <div class="stat rev"><b>${t.reversed_minutes}</b><span class="k">已冲销分钟</span></div>`;
+  document.getElementById("versions").innerHTML = L.versions.map(v => `
+    <tr><td>第${v.plan_version}版</td><td>${v.authorized_minutes}</td><td>${v.opening_minutes}</td>
+        <td style="color:var(--ok)">${v.effective_minutes}</td>
+        <td class="${v.pending_minutes ? "gap" : ""}">${v.pending_minutes} / 缺口 ${v.gap_minutes}</td></tr>`).join("");
+  document.getElementById("pending").innerHTML = L.pending.length ? L.pending.map(x => `
+    <tr><td>${esc(x.credential)}</td><td>${esc(x.service_date)}</td><td>${esc(x.provider)}</td>
+        <td>${x.minutes}</td><td>${x.effective_minutes}</td><td class="gap">${x.pending_minutes}</td>
+        <td>第${x.plan_version}版</td><td class="gap">${esc(x.gap_note)}</td></tr>`).join("")
+      : '<tr><td colspan="8" class="muted">待处理区已清零，复查/结案闸门打开。</td></tr>';
+  document.getElementById("entries").innerHTML = L.entries.map(e => e.type === "registration" ? `
+    <tr>
+      <td>${e.seq}</td><td><span class="badge registration">登记</span></td>
+      <td>${esc(e.credential)}</td><td>${esc(e.service_date)}</td><td>${esc(e.provider)}</td>
+      <td>${e.minutes}</td><td>第${e.plan_version}版（${e.authorized_minutes}）</td>
+      <td style="color:var(--ok)">${e.status === "reversed" ? 0 : e.effective_minutes}</td>
+      <td class="${e.status === "reversed" ? "" : "gap"}">${e.status === "reversed" ? 0 : e.pending_minutes}</td>
+      <td><span class="badge ${e.status}">${e.status === "reversed" ? "已冲销" : "有效登记"}</span>${e.reversal_reason ? "：" + esc(e.reversal_reason) : ""}</td>
+    </tr>` : `
+    <tr>
+      <td>${e.seq}</td><td><span class="badge reversal">冲销</span></td>
+      <td class="muted">冲销 #${e.reverses_id}</td><td></td><td></td><td style="color:var(--rev)">−${e.minutes}</td>
+      <td>第${e.plan_version}版</td><td>—</td><td>—</td>
+      <td style="color:var(--rev)">${esc(e.reversal_reason)}</td>
+    </tr>`).join("");
+  document.getElementById("timeline").innerHTML = tl.items.map((x, i) => `
+    <tr><td>${i + 1}</td><td>${esc(x.action)}</td><td>${esc(x.actor_id)}</td><td>v${x.version}</td>
+        <td><code>${esc(JSON.stringify(x.details))}</code></td><td class="muted">${esc(x.created_at)}</td></tr>`).join("");
+  document.getElementById("raw").classList.remove("hidden");
+  document.getElementById("raw").textContent = JSON.stringify(bundle, null, 2);
+}
+function latestVersion() { return window.__plan.version; }
+async function act(action, data) {
+  try {
+    const r = await api("POST", `/api/records/${currentId}/actions/${action}`, {expected_version: latestVersion(), data});
+    msg(`${action} 完成 → ${r.state}`, true);
+    await refreshDetail();
+  } catch (e) { msg(`${action} 失败：${e.message}`); }
+}
+async function amend() {
+  const goals = val("a_goals").split(",").map(s => s.trim()).filter(Boolean);
+  const minutesRaw = val("a_minutes").trim();
+  const data = {amendment_reason: val("a_reason"), updated_goals: goals};
+  if (minutesRaw) data.service_minutes = Number(minutesRaw);
+  try {
+    const r = await api("POST", `/api/records/${currentId}/actions/amend`, {expected_version: latestVersion(), data});
+    msg(r.authorization_changed ? `已发布计划第${r.new_plan_version}版，新授权只约束新流水` : "计划已修订（授权未变，沿用当前版本）", true);
+    await refreshDetail();
+  } catch (e) { msg("修订失败：" + e.message); }
+}
+async function logService() {
+  const data = {credential: val("l_credential"), service_date: val("l_date"),
+                session_minutes: Number(val("l_minutes")), provider: val("l_provider")};
+  try {
+    const r = await api("POST", `/api/records/${currentId}/actions/log_service`, {expected_version: latestVersion(), data});
+    if (r.idempotent_replay) msg("重复凭据：只返回原结果（#" + r.entry.id + "），未重复计分钟", true);
+    else msg(`已登记 #${r.entry.id}：有效${r.entry.effective_minutes}，待处理${r.entry.pending_minutes}`, true);
+    await refreshDetail();
+  } catch (e) { msg("登记失败：" + e.message); }
+}
+function replayDemo() { return logService(); }
+async function reverseService() {
+  const data = {credential: val("r_credential"), reason: val("r_reason")};
+  try {
+    const r = await api("POST", `/api/records/${currentId}/actions/reverse_service`, {expected_version: latestVersion(), data});
+    msg(r.idempotent_replay ? "该凭据此前已冲销，返回原冲销结果" : "已追加冲销流水，原登记保持不变", true);
+    await refreshDetail();
+  } catch (e) { msg("冲销失败：" + e.message); }
+}
+// 初始化
+document.getElementById("l_date").value = new Date().toISOString().slice(0, 10);
+loadRecords();
 </script>
 </body>
 </html>

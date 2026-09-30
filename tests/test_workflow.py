@@ -3,11 +3,18 @@ import unittest
 from pathlib import Path
 
 from app import build_service
-from src.domain import Actor, Conflict
+from src.domain import Actor
 
 
 CREATE_DATA = {'student_id': 'S-100', 'disability': 'hearing', 'service_minutes': 600, 'delivered_minutes': 120, 'review_due_days': 15, 'goals_count': 4, 'consent': False}
-FLOW = [('consent', 'parent_rep', {'guardian_confirmed': True, 'consent_scope': '个别化服务'}, 'consented'), ('activate', 'case_manager', {}, 'active'), ('log_service', 'specialist', {'session_minutes': 60, 'provider': 'SP-3'}, 'active'), ('review', 'administrator', {'progress_note': '阶段复盘'}, 'under_review'), ('amend', 'case_manager', {'amendment_reason': '调整目标', 'updated_goals': ['目标A', '目标B']}, 'active'), ('close', 'administrator', {'review_complete': True}, 'closed')]
+FLOW = [
+    ('consent', 'parent_rep', {'guardian_confirmed': True, 'consent_scope': '个别化服务'}, 'consented'),
+    ('activate', 'case_manager', {}, 'active'),
+    ('log_service', 'specialist', {'credential': 'CRED-001', 'service_date': '2026-09-01', 'session_minutes': 60, 'provider': 'SP-3'}, 'active'),
+    ('review', 'administrator', {'progress_note': '阶段复盘'}, 'under_review'),
+    ('amend', 'case_manager', {'amendment_reason': '调整目标', 'updated_goals': ['目标A', '目标B']}, 'active'),
+    ('close', 'administrator', {'review_complete': True}, 'closed'),
+]
 
 
 class WorkflowTest(unittest.TestCase):
@@ -27,3 +34,7 @@ class WorkflowTest(unittest.TestCase):
         timeline = self.service.timeline(Actor("creator", "case_manager"), record["id"])
         self.assertEqual(len(timeline), len(FLOW) + 1)
         self.assertEqual(timeline[-1]["action"], FLOW[-1][0])
+        # 期初120 + 新登记60 = 180有效，无待处理、无冲销。
+        self.assertEqual(record["payload"]["delivered_minutes"], 180)
+        self.assertEqual(record["payload"]["pending_minutes"], 0)
+        self.assertEqual(record["payload"]["reversed_minutes"], 0)
