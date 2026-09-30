@@ -12,6 +12,12 @@ from .domain import Actor, DomainError, PermissionDenied, ValidationError
 RECORD_RE = re.compile(r"^/api/records/(\d+)$")
 ACTION_RE = re.compile(r"^/api/records/(\d+)/actions/([a-z_]+)$")
 AUDIT_RE = re.compile(r"^/api/records/(\d+)/audit$")
+LEDGER_RE = re.compile(r"^/api/records/(\d+)/ledger$")
+VERSIONS_RE = re.compile(r"^/api/records/(\d+)/plan-versions$")
+ENTRIES_RE = re.compile(r"^/api/records/(\d+)/service-entries$")
+
+# 流水类操作按服务凭据幂等，断网重送时本地版本可能过期，不做版本号前置校验
+IDEMPOTENT_ACTIONS = {"log_service", "void_service"}
 
 
 def make_handler(service: Any, static_dir: Path):
@@ -84,6 +90,18 @@ def make_handler(service: Any, static_dir: Path):
                 if match:
                     self._send(200, {"items": service.timeline(self._actor(), int(match.group(1)))})
                     return
+                match = LEDGER_RE.match(parsed.path)
+                if match:
+                    self._send(200, service.ledger(self._actor(), int(match.group(1))))
+                    return
+                match = VERSIONS_RE.match(parsed.path)
+                if match:
+                    self._send(200, {"items": service.plan_versions(self._actor(), int(match.group(1)))})
+                    return
+                match = ENTRIES_RE.match(parsed.path)
+                if match:
+                    self._send(200, {"items": service.service_entries(self._actor(), int(match.group(1)))})
+                    return
                 if parsed.path == "/api/stats":
                     self._send(200, service.stats(self._actor()))
                     return
@@ -101,10 +119,16 @@ def make_handler(service: Any, static_dir: Path):
                     return
                 match = ACTION_RE.match(parsed.path)
                 if match:
-                    version = body.get("expected_version")
-                    if not isinstance(version, int):
-                        raise ValidationError("expected_version必须是整数")
-                    record = service.act(self._actor(), int(match.group(1)), version, match.group(2), body.get("data", {}))
+                    action = match.group(2)
+                    if action in IDEMPOTENT_ACTIONS:
+                        version = body.get("expected_version")
+                        if version is not None and not isinstance(version, int):
+                            raise ValidationError("expected_version必须是整数")
+                    else:
+                        version = body.get("expected_version")
+                        if not isinstance(version, int):
+                            raise ValidationError("expected_version必须是整数")
+                    record = service.act(self._actor(), int(match.group(1)), version, action, body.get("data", {}))
                     self._send(200, record)
                     return
                 self._send(404, {"error": "not_found", "message": "路径不存在"})
@@ -114,5 +138,11 @@ def make_handler(service: Any, static_dir: Path):
     return Handler
 
 
+class QueuedThreadingHTTPServer(ThreadingHTTPServer):
+    # 并发重送场景下放大TCP握手队列，避免连接在被accept前被重置
+    request_queue_size = 128
+    daemon_threads = True
+
+
 def create_server(host: str, port: int, service: Any, static_dir: Path) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((host, port), make_handler(service, static_dir))
+    return QueuedThreadingHTTPServer((host, port), make_handler(service, static_dir))

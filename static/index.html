@@ -3,31 +3,173 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>特殊教育支持计划合规</title>
+  <title>特殊教育支持计划 · 服务流水账</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #17212b; }
-    main { max-width: 960px; margin: auto; }
-    button { padding: .55rem .9rem; cursor: pointer; }
-    pre { background: #f4f6f8; padding: 1rem; overflow: auto; border-radius: 8px; }
-    .row { display: flex; gap: 1rem; align-items: center; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #17212b; background: #f7f8fa; }
+    main { max-width: 1080px; margin: auto; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.05rem; margin-top: 1.8rem; }
+    .row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+    button { padding: .5rem .9rem; cursor: pointer; border: 1px solid #2f6fb0; background: #2f6fb0; color: #fff; border-radius: 6px; }
+    button.secondary { background: #fff; color: #2f6fb0; }
+    input, textarea { padding: .45rem .55rem; border: 1px solid #c4ccd4; border-radius: 6px; font-size: .9rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; margin: 1rem 0; }
+    .card { background: #fff; border-radius: 10px; padding: .9rem 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .card .label { font-size: .78rem; color: #667; }
+    .card .value { font-size: 1.5rem; font-weight: 600; margin-top: .2rem; }
+    .card.effective .value { color: #1c7c4d; }
+    .card.pending .value { color: #b26a00; }
+    .card.voided .value { color: #8a8f98; }
+    table { border-collapse: collapse; width: 100%; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid #eef1f4; font-size: .86rem; }
+    th { background: #eef3f8; }
+    .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .76rem; }
+    .badge.effective { background: #e3f5ec; color: #1c7c4d; }
+    .badge.partial { background: #fdf2dc; color: #b26a00; }
+    .badge.pending { background: #fde4e1; color: #b3382c; }
+    .badge.voided { background: #eceef1; color: #6b7280; }
+    .panel { background: #fff; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 1rem; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    label { font-size: .78rem; color: #556; display: block; margin-bottom: .2rem; }
+    .field { margin-bottom: .55rem; }
+    pre { background: #1e2530; color: #e6edf3; padding: 1rem; overflow: auto; border-radius: 8px; font-size: .8rem; max-height: 320px; }
+    .muted { color: #778; font-size: .82rem; }
+    #msg { font-size: .86rem; margin: .5rem 0; min-height: 1.2em; }
+    @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
 <main>
-  <h1>特殊教育支持计划合规</h1>
-  <p>最小演示页。完整业务流程通过README中的JSON接口调用。</p>
-  <div class="row"><button id="load">加载记录</button><button id="stats">查看状态统计</button></div>
-  <pre id="output">点击上方按钮读取服务状态。</pre>
+  <h1>特殊教育支持计划 · 服务流水账</h1>
+  <div class="row">
+    <label style="margin:0">记录ID <input id="recordId" type="number" min="1" value="1" style="width:90px"></label>
+    <button id="load">加载流水</button>
+    <button id="audit" class="secondary">查看审计时间线</button>
+    <span id="meta" class="muted"></span>
+  </div>
+  <div id="msg"></div>
+
+  <div class="cards">
+    <div class="card"><div class="label">当前计划版本 / 授权分钟</div><div class="value" id="tAuth">–</div></div>
+    <div class="card effective"><div class="label">有效分钟</div><div class="value" id="tEff">–</div></div>
+    <div class="card pending"><div class="label">待处理分钟（缺口）</div><div class="value" id="tPen">–</div></div>
+    <div class="card voided"><div class="label">已冲销分钟</div><div class="value" id="tVoid">–</div></div>
+  </div>
+  <p class="muted" id="gapDetail"></p>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2 style="margin-top:0">登记服务</h2>
+      <div class="field"><label>服务凭据（断网重送同一凭据只返回原结果）</label><input id="cred" placeholder="如 SV-2026-0930-01"></div>
+      <div class="row">
+        <div class="field" style="flex:1"><label>服务日期</label><input id="date" type="date"></div>
+        <div class="field" style="flex:1"><label>分钟</label><input id="minutes" type="number" min="1" value="30"></div>
+      </div>
+      <div class="field"><label>提供者</label><input id="provider" placeholder="如 SP-3"></div>
+      <button id="register">提交登记</button>
+    </div>
+    <div class="panel">
+      <h2 style="margin-top:0">冲销错报</h2>
+      <p class="muted">原流水不修改，只写原因冲销，再用新凭据重新登记。</p>
+      <div class="field"><label>原服务凭据</label><input id="voidCred"></div>
+      <div class="field"><label>冲销原因</label><textarea id="voidReason" rows="2" style="width:100%;box-sizing:border-box"></textarea></div>
+      <button id="voidBtn">提交冲销</button>
+    </div>
+  </div>
+
+  <h2>计划版本授权</h2>
+  <table><thead><tr><th>版本</th><th>授权分钟</th><th>原因</th><th>创建人</th><th>生效时间</th></tr></thead>
+    <tbody id="versions"></tbody></table>
+
+  <h2>服务流水（按凭据不可变）</h2>
+  <table><thead><tr>
+    <th>凭据</th><th>日期</th><th>分钟</th><th>提供者</th><th>登记版本</th><th>状态</th>
+    <th>有效</th><th>待处理/缺口</th><th>冲销原因 / 时间</th>
+  </tr></thead><tbody id="entries"></tbody></table>
+
+  <h2 id="auditTitle" style="display:none">审计时间线</h2>
+  <pre id="auditOut" style="display:none"></pre>
 </main>
 <script>
-const headers = {"X-User-Id":"demo-admin","X-Role":"admin","X-Org":"demo"};
-async function show(path) {
-  const response = await fetch(path, {headers});
-  const data = await response.json();
-  document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+const baseHeaders = {"X-User-Id":"demo-specialist","X-Role":"specialist","X-Org":"demo","Content-Type":"application/json"};
+const STATUS_TEXT = {effective:"有效", partial:"部分有效", pending:"待处理", voided:"已冲销"};
+let current = null;
+
+function msg(text, isError) {
+  const el = document.getElementById("msg");
+  el.textContent = text || "";
+  el.style.color = isError ? "#b3382c" : "#1c7c4d";
 }
-document.getElementById("load").onclick = () => show("/api/records?limit=20");
-document.getElementById("stats").onclick = () => show("/api/stats");
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error((data.error || "error") + "：" + (data.message || ""));
+  return data;
+}
+function id() { return parseInt(document.getElementById("recordId").value, 10); }
+
+async function load() {
+  try {
+    current = await api(`/api/records/${id()}/ledger`, {headers: baseHeaders});
+    render();
+    msg("");
+  } catch (e) { msg(e.message, true); }
+}
+function render() {
+  const {record, totals, versions, entries} = current;
+  document.getElementById("meta").textContent =
+    `记录 ${record.reference} · 学生 ${record.payload.student_id} · 状态 ${record.state} · 记录版本 ${record.version}`;
+  document.getElementById("tAuth").textContent = `v${totals.current_version} / ${totals.current_authorized_minutes}`;
+  document.getElementById("tEff").textContent = totals.effective_minutes;
+  document.getElementById("tPen").textContent = totals.pending_minutes;
+  document.getElementById("tVoid").textContent = totals.voided_minutes;
+  const gapPairs = Object.entries(totals.gap_by_version || {}).filter(([,v]) => v > 0);
+  document.getElementById("gapDetail").textContent = gapPairs.length
+    ? "待处理缺口按版本：" + gapPairs.map(([v,m]) => `v${v} 缺 ${m} 分钟`).join("；") + "。复查与结案需待处理区清零。"
+    : "待处理区已清零，可进入复查/结案。";
+  document.getElementById("versions").innerHTML = versions.map(v =>
+    `<tr><td>v${v.version_no}</td><td>${v.authorized_minutes}</td><td>${v.reason||""}</td><td>${v.created_by}</td><td>${v.created_at}</td></tr>`).join("");
+  document.getElementById("entries").innerHTML = entries.map(e =>
+    `<tr>
+      <td>${e.credential}</td><td>${e.service_date}</td><td>${e.minutes}</td><td>${e.provider}</td>
+      <td>v${e.plan_version}</td><td><span class="badge ${e.status}">${STATUS_TEXT[e.status]||e.status}</span></td>
+      <td>${e.effective_minutes}</td><td>${e.pending_minutes}${e.gap_minutes ? `（缺${e.gap_minutes}）` : ""}</td>
+      <td>${e.voided ? `${e.void_reason} · ${e.voided_by} · ${e.voided_at}` : ""}</td>
+    </tr>`).join("");
+}
+
+document.getElementById("load").onclick = load;
+document.getElementById("register").onclick = async () => {
+  const payload = {data: {
+    credential: document.getElementById("cred").value.trim(),
+    service_date: document.getElementById("date").value,
+    minutes: parseInt(document.getElementById("minutes").value, 10),
+    provider: document.getElementById("provider").value.trim()
+  }};
+  try {
+    const r = await api(`/api/records/${id()}/actions/log_service`, {method:"POST", headers: baseHeaders, body: JSON.stringify(payload)});
+    await load();
+    msg(r.duplicate ? "凭据重复，已返回原登记结果，未重复计费。" :
+      (r.entry.pending_minutes > 0 ? `已登记：${r.entry.effective_minutes} 分钟有效，${r.entry.pending_minutes} 分钟进入待处理区。` : "已登记，全部计入有效分钟。"));
+  } catch (e) { msg(e.message, true); }
+};
+document.getElementById("voidBtn").onclick = async () => {
+  const payload = {data: {credential: document.getElementById("voidCred").value.trim(), reason: document.getElementById("voidReason").value.trim()}};
+  try {
+    const r = await api(`/api/records/${id()}/actions/void_service`, {method:"POST", headers: baseHeaders, body: JSON.stringify(payload)});
+    await load();
+    msg(r.duplicate ? "该凭据此前已冲销，返回原冲销结果。" : "已写冲销原因，原流水保留，合计已重算。");
+  } catch (e) { msg(e.message, true); }
+};
+document.getElementById("audit").onclick = async () => {
+  try {
+    const r = await api(`/api/records/${id()}/audit`, {headers: baseHeaders});
+    document.getElementById("auditTitle").style.display = "block";
+    const out = document.getElementById("auditOut");
+    out.style.display = "block";
+    out.textContent = r.items.map(e => `#${e.id} ${e.created_at}  ${e.action}  v${e.version}  by ${e.actor_id}\n  ${JSON.stringify(e.details, null, 0)}`).join("\n\n");
+  } catch (e) { msg(e.message, true); }
+};
 </script>
 </body>
 </html>
